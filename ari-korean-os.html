@@ -429,10 +429,10 @@ async function sbLoadLessons(){
   return data.map(r=>r.data);
 }
 async function sbSaveLesson(L){
-  const {error} = await sb.from("lessons").insert({
+  const {error} = await sb.from("lessons").upsert({
     id:L.id, student_id:L.studentId, scenario_id:L.scenarioId, stage_id:L.stageId,
     mission:L.mission, data:L
-  });
+  },{onConflict:"id"});
   if(error){console.error("수업 저장 실패:",error.message); alert("저장 실패: "+error.message); return false;}
   return true;
 }
@@ -585,7 +585,7 @@ function assemble(){
 }
 
 function generateLesson(silent){
-  currentLesson=assemble(); const L=currentLesson;
+  currentLesson=assemble(); currentLesson.saved=false; const L=currentLesson;
   document.getElementById("btn-save").style.display="inline-flex";
   document.getElementById("btn-stuview").style.display="inline-flex";
   document.getElementById("lesson-out").innerHTML = `
@@ -657,12 +657,21 @@ function generateLesson(silent){
   if(!silent) document.getElementById("lesson-out").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
+/* 수업이 아직 Supabase에 저장 안 됐으면 자동으로 먼저 저장 (Natural Upgrade의 외래키 오류 방지) */
+async function ensureLessonSaved(){
+  if(currentLesson.saved) return true;
+  const ok = await sbSaveLesson(currentLesson);
+  if(ok){
+    currentLesson.saved = true;
+    if(!mem.lessons.find(l=>l.id===currentLesson.id)) mem.lessons.push(currentLesson);
+  }
+  return ok;
+}
 async function saveLesson(){
   if(!currentLesson)return;
   const b=document.getElementById("btn-save"); b.textContent="저장 중…";
-  const ok = await sbSaveLesson(currentLesson);
+  const ok = await ensureLessonSaved();
   if(ok){
-    mem.lessons.push(currentLesson);
     b.textContent="저장됨 ✓"; setTimeout(()=>b.textContent="저장",1800);
     renderHome();
   } else {
@@ -686,6 +695,8 @@ function renderUpgradesFor(sid){
 async function addUpgrade(){
   const g=id=>document.getElementById(id).value.trim();
   if(!g("nu-orig")||!g("nu-fix")){alert("학생 문장과 Fix는 필수입니다.");return;}
+  const lessonOk = await ensureLessonSaved();
+  if(!lessonOk){ alert("수업이 먼저 저장되어야 표현을 기록할 수 있어요."); return; }
   const entry={studentId:currentLesson.studentId, lessonId:currentLesson.id,
     orig:g("nu-orig"), fix:g("nu-fix"), up:g("nu-up"), grow:g("nu-grow"),
     date:new Date().toLocaleDateString("ko-KR")};
@@ -694,6 +705,7 @@ async function addUpgrade(){
   mem.upgrades.push(entry);
   ["nu-orig","nu-fix","nu-up","nu-grow"].forEach(i=>document.getElementById(i).value="");
   document.getElementById("nu-list").innerHTML=renderUpgradesFor(currentLesson.studentId);
+  document.getElementById("btn-save").textContent="저장됨 ✓";
 }
 
 /* ═════════════════════ 6. 자료실 ═════════════════════ */
