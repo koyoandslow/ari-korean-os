@@ -6,6 +6,7 @@
 <title>ARI Korean OS — 수업 생성 엔진</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root{
   --paper:#F7F5F0; --card:#FFFFFF; --ink:#26303E; --ink-soft:#5B6472;
@@ -399,18 +400,90 @@ scenarios:[
 ],
 };
 
-/* ═════════════════════ 2. 저장소 (persist + 메모리 폴백) ═════════════════════ */
-const mem = {lessons:[],upgrades:[],hwStatus:{},custom:{grammar:[],patterns:[],vocab:[],questions:[],functions:[]}};
-const hasStore = typeof window.storage !== "undefined";
-async function load(key,fb){ if(!hasStore) return fb;
-  try{const r=await window.storage.get(key); return r?JSON.parse(r.value):fb;}catch(e){return fb;} }
-async function save(key,val){ if(!hasStore) return;
-  try{await window.storage.set(key,JSON.stringify(val));}catch(e){console.error("저장 실패",e);} }
+/* ═════════════════════ 2. 저장소 — Supabase 연동 ═════════════════════ */
+const SUPABASE_URL = "https://nubmenbxytrhicbrqxcd.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51Ym1lbmJ4eXRyaGljYnJxeGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNDgzNzksImV4cCI6MjA5ODYyNDM3OX0.URlGQlyxUVifNiAn4vdm0rGBx5FU222gFC96IkhzaHg";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const mem = {lessons:[],upgrades:[],hwStatus:{},hwRowId:{},custom:{grammar:[],patterns:[],vocab:[],questions:[],functions:[]}};
+
+/* 자료실(커스텀 추가 항목)은 지금 단계에서는 세션 내 메모리에만 보관됩니다.
+   ※ 다음 단계에서 library_items 테이블을 추가하면 이 부분도 영구 저장으로 확장할 수 있습니다. */
+function loadCustom(){ return mem.custom; }
+function saveCustom(){ /* 다음 단계에서 Supabase 테이블 연동 예정 */ }
+
+/* ── 학생 시드 데이터를 Supabase students 테이블에 동기화 (없으면 생성) ── */
+async function syncStudents(){
+  const rows = DB.students.map(s=>({
+    id:s.id, name:s.name, level:s.level, goal:s.goal,
+    interests:s.interests, weak_points:s.weak
+  }));
+  const {error} = await sb.from("students").upsert(rows,{onConflict:"id"});
+  if(error) console.error("학생 동기화 실패:", error.message);
+}
+
+/* ── 수업 기록 ── */
+async function sbLoadLessons(){
+  const {data,error} = await sb.from("lessons").select("*").order("created_at",{ascending:true});
+  if(error){console.error("수업 불러오기 실패:",error.message); return [];}
+  return data.map(r=>r.data);
+}
+async function sbSaveLesson(L){
+  const {error} = await sb.from("lessons").insert({
+    id:L.id, student_id:L.studentId, scenario_id:L.scenarioId, stage_id:L.stageId,
+    mission:L.mission, data:L
+  });
+  if(error){console.error("수업 저장 실패:",error.message); alert("저장 실패: "+error.message); return false;}
+  return true;
+}
+
+/* ── Natural Upgrade 기록 ── */
+async function sbLoadUpgrades(){
+  const {data,error} = await sb.from("upgrades").select("*").order("created_at",{ascending:true});
+  if(error){console.error("표현 기록 불러오기 실패:",error.message); return [];}
+  return data.map(r=>({
+    studentId:r.student_id, lessonId:r.lesson_id,
+    orig:r.orig, fix:r.fix, up:r.upgrade, grow:r.grow,
+    date:new Date(r.created_at).toLocaleDateString("ko-KR")
+  }));
+}
+async function sbSaveUpgrade(u){
+  const {error} = await sb.from("upgrades").insert({
+    student_id:u.studentId, lesson_id:u.lessonId||null,
+    orig:u.orig, fix:u.fix, upgrade:u.up, grow:u.grow
+  });
+  if(error){console.error("표현 기록 저장 실패:",error.message); alert("저장 실패: "+error.message); return false;}
+  return true;
+}
+
+/* ── 숙제 완료 상태 ── */
+async function sbLoadHomework(){
+  const {data,error} = await sb.from("homework_status").select("*");
+  const status={}, rowId={};
+  if(error){console.error("숙제 상태 불러오기 실패:",error.message); return {status,rowId};}
+  data.forEach(r=>{ status[r.lesson_id]=r.is_done; rowId[r.lesson_id]=r.id; });
+  return {status,rowId};
+}
+async function sbToggleHomework(lessonId,studentId,isDone){
+  const existingRowId = mem.hwRowId[lessonId];
+  if(existingRowId){
+    const {error} = await sb.from("homework_status").update({is_done:isDone}).eq("id",existingRowId);
+    if(error) console.error("숙제 상태 변경 실패:",error.message);
+  } else {
+    const {data,error} = await sb.from("homework_status")
+      .insert({student_id:studentId, lesson_id:lessonId, is_done:isDone}).select();
+    if(error) console.error("숙제 상태 저장 실패:",error.message);
+    else if(data && data[0]) mem.hwRowId[lessonId]=data[0].id;
+  }
+}
+
 async function boot(){
-  mem.lessons  = await load("ari:lessons",[]);
-  mem.upgrades = await load("ari:upgrades",[]);
-  mem.hwStatus = await load("ari:hw",{});
-  mem.custom   = await load("ari:custom",mem.custom);
+  await syncStudents();
+  mem.lessons  = await sbLoadLessons();
+  mem.upgrades = await sbLoadUpgrades();
+  const hw = await sbLoadHomework();
+  mem.hwStatus = hw.status; mem.hwRowId = hw.rowId;
+  mem.custom   = loadCustom();
   ["grammar","patterns","vocab","questions","functions"].forEach(k=>{
     (mem.custom[k]||[]).forEach(it=>DB[k].push(it));
   });
@@ -586,10 +659,15 @@ function generateLesson(silent){
 
 async function saveLesson(){
   if(!currentLesson)return;
-  const plain={...currentLesson};
-  mem.lessons.push(plain); await save("ari:lessons",mem.lessons);
-  const b=document.getElementById("btn-save"); b.textContent="저장됨 ✓";
-  setTimeout(()=>b.textContent="저장",1800); renderHome();
+  const b=document.getElementById("btn-save"); b.textContent="저장 중…";
+  const ok = await sbSaveLesson(currentLesson);
+  if(ok){
+    mem.lessons.push(currentLesson);
+    b.textContent="저장됨 ✓"; setTimeout(()=>b.textContent="저장",1800);
+    renderHome();
+  } else {
+    b.textContent="저장";
+  }
 }
 function openStudentView(){
   if(currentLesson){document.getElementById("stu-select").value=currentLesson.studentId;}
@@ -608,10 +686,12 @@ function renderUpgradesFor(sid){
 async function addUpgrade(){
   const g=id=>document.getElementById(id).value.trim();
   if(!g("nu-orig")||!g("nu-fix")){alert("학생 문장과 Fix는 필수입니다.");return;}
-  mem.upgrades.push({studentId:currentLesson.studentId,orig:g("nu-orig"),fix:g("nu-fix"),
-    up:g("nu-up"),grow:g("nu-grow"),date:new Date().toLocaleDateString("ko-KR"),
-    lessonMission:currentLesson.mission});
-  await save("ari:upgrades",mem.upgrades);
+  const entry={studentId:currentLesson.studentId, lessonId:currentLesson.id,
+    orig:g("nu-orig"), fix:g("nu-fix"), up:g("nu-up"), grow:g("nu-grow"),
+    date:new Date().toLocaleDateString("ko-KR")};
+  const ok = await sbSaveUpgrade(entry);
+  if(!ok) return;
+  mem.upgrades.push(entry);
   ["nu-orig","nu-fix","nu-up","nu-grow"].forEach(i=>document.getElementById(i).value="");
   document.getElementById("nu-list").innerHTML=renderUpgradesFor(currentLesson.studentId);
 }
@@ -651,7 +731,7 @@ async function addLibItem(ev){
   const item=t.make(vals);
   DB[t.k].push(item);
   mem.custom[t.k]=mem.custom[t.k]||[]; mem.custom[t.k].push(item);
-  await save("ari:custom",mem.custom);
+  saveCustom();
   ev.target.reset(); renderLibrary(); return false;
 }
 
@@ -661,8 +741,11 @@ function fillStudentSelect(){
     DB.students.map(s=>`<option value="${s.id}">${s.name} (${s.level})</option>`).join("");
 }
 async function toggleHW(key,cb){
-  mem.hwStatus[key]=cb.checked; await save("ari:hw",mem.hwStatus);
-  cb.closest(".hw-item").classList.toggle("done",cb.checked); renderStudent();
+  mem.hwStatus[key]=cb.checked;
+  cb.closest(".hw-item").classList.toggle("done",cb.checked);
+  const stu = document.getElementById("stu-select").value || DB.students[0].id;
+  await sbToggleHomework(key, stu, cb.checked);
+  renderStudent();
 }
 function renderStudent(){
   const sid=document.getElementById("stu-select").value||DB.students[0].id;
