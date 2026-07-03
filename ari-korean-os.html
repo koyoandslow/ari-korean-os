@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARI Korean OS — 수업 생성 엔진</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F7F5F0; --card:#FFFFFF; --ink:#26303E; --ink-soft:#5B6472;
+  --celadon:#3E8E7E; --celadon-deep:#2C6B5F; --celadon-mist:#E7F1EE;
+  --persimmon:#DA6A43; --persimmon-mist:#FBEDE6;
+  --line:#E3DFD6; --line-soft:#EEEBE3;
+  --r:14px; --shadow:0 1px 3px rgba(38,48,62,.07), 0 8px 24px rgba(38,48,62,.05);
+  --disp:'Gowun Batang',serif; --body:'IBM Plex Sans KR',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6}
+button{font-family:var(--body);cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font-family:var(--body);font-size:14px;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:#fff;width:100%}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--celadon);outline-offset:1px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+/* ── 상단 헤더 ─────────────────────────── */
+header{position:sticky;top:0;z-index:40;background:rgba(247,245,240,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.hd-in{max-width:1120px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:12px 20px}
+.wordmark{font-family:var(--disp);font-weight:700;font-size:20px;letter-spacing:.5px;white-space:nowrap}
+.wordmark em{font-style:normal;color:var(--celadon)}
+.wordmark small{display:block;font-family:var(--body);font-weight:400;font-size:10.5px;color:var(--ink-soft);letter-spacing:1.5px}
+nav.top{display:flex;gap:4px;margin-left:auto}
+nav.top button{padding:8px 14px;border-radius:999px;font-size:14px;font-weight:500;color:var(--ink-soft)}
+nav.top button.on{background:var(--ink);color:#fff}
+nav.top button:hover:not(.on){background:var(--line-soft)}
+
+/* ── 레이아웃 ─────────────────────────── */
+main{max-width:1120px;margin:0 auto;padding:24px 20px 110px}
+.view{display:none}.view.on{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+h1.pg{font-family:var(--disp);font-size:26px;font-weight:700;margin-bottom:4px}
+p.sub{color:var(--ink-soft);margin-bottom:22px;font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:1.6px;color:var(--celadon-deep);text-transform:uppercase;margin-bottom:8px}
+.chip{display:inline-block;font-size:12px;padding:3px 10px;border-radius:999px;background:var(--celadon-mist);color:var(--celadon-deep);font-weight:500;margin:2px 3px 2px 0}
+.chip.warm{background:var(--persimmon-mist);color:var(--persimmon)}
+.chip.plain{background:var(--line-soft);color:var(--ink-soft)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:11px;font-weight:600;font-size:14px}
+.btn.pri{background:var(--celadon);color:#fff}.btn.pri:hover{background:var(--celadon-deep)}
+.btn.ghost{border:1px solid var(--line);background:#fff}.btn.ghost:hover{border-color:var(--celadon)}
+.btn.small{padding:6px 12px;font-size:13px;border-radius:9px}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+.empty{border:1.5px dashed var(--line);border-radius:var(--r);padding:28px;text-align:center;color:var(--ink-soft);font-size:14px}
+
+/* ── 홈: 교사 대시보드 ─────────────────── */
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.stat b{display:block;font-family:var(--disp);font-size:24px}
+.stat span{font-size:12.5px;color:var(--ink-soft)}
+.lesson-row{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line-soft)}
+.lesson-row:last-child{border-bottom:none}
+.lesson-row .who{width:34px;height:34px;border-radius:50%;background:var(--celadon-mist);color:var(--celadon-deep);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+.lesson-row .meta{flex:1;min-width:0}
+.lesson-row .meta b{font-size:14px}
+.lesson-row .meta span{display:block;font-size:12.5px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── 수업 생성기: 조립 체인 (시그니처) ───── */
+.chain{display:grid;grid-template-columns:1fr 28px 1fr 28px 1fr;align-items:stretch;gap:0;margin-bottom:20px}
+.chain .link{display:flex;align-items:center;justify-content:center;color:var(--line);font-size:20px}
+.slot{background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:16px}
+.slot.done{border-color:var(--celadon)}
+.slot h3{font-size:13px;font-weight:700;color:var(--ink-soft);margin-bottom:10px;letter-spacing:.6px}
+.slot h3 i{font-style:normal;color:var(--celadon-deep);margin-right:6px;font-family:var(--disp)}
+.opt{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:7px;font-size:14px;background:#fff}
+.opt:hover{border-color:var(--celadon)}
+.opt.sel{border-color:var(--celadon);background:var(--celadon-mist);font-weight:600}
+.opt small{display:block;font-size:12px;color:var(--ink-soft);font-weight:400}
+.gen-bar{display:flex;justify-content:center;gap:10px;margin:6px 0 26px}
+
+/* ── 수업 카드 (교사 1페이지 대시보드) ───── */
+.lesson-sheet{display:grid;grid-template-columns:132px 1fr;gap:0;background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.spine{background:var(--ink);color:#fff;padding:22px 14px;display:flex;flex-direction:column;gap:0}
+.spine .step{font-size:11px;letter-spacing:.5px;opacity:.55;padding:7px 0 2px}
+.spine .val{font-size:13px;font-weight:600;line-height:1.35}
+.spine .arrow{color:var(--celadon);opacity:.9;font-size:12px;padding:2px 0}
+.sheet-body{padding:26px 28px}
+.mission{font-family:var(--disp);font-size:21px;font-weight:700;line-height:1.45;padding:14px 18px;background:var(--celadon-mist);border-left:4px solid var(--celadon);border-radius:0 10px 10px 0;margin-bottom:22px}
+.sec{margin-bottom:20px}
+.sec h4{font-size:12px;font-weight:700;letter-spacing:1.4px;color:var(--celadon-deep);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.sec h4::after{content:"";flex:1;height:1px;background:var(--line-soft)}
+.pat{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:8px}
+.pat b{font-size:15px}
+.pat .lv{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+.pat .lv em{font-style:normal;color:var(--celadon-deep);font-weight:600;margin-right:6px;font-size:11px}
+.qa{padding:8px 0;border-bottom:1px dashed var(--line-soft);font-size:14.5px}
+.qa:last-child{border-bottom:none}
+.qa small{display:block;color:var(--ink-soft);font-size:12.5px}
+.gr-table{width:100%;border-collapse:collapse;font-size:14px}
+.gr-table td{padding:8px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.gr-table td:first-child{font-weight:700;white-space:nowrap;font-family:var(--disp)}
+.hw-box{background:var(--persimmon-mist);border-radius:10px;padding:14px 16px}
+.hw-box b{color:var(--persimmon)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+
+/* Natural Upgrade 입력 */
+.nu-grid{display:grid;grid-template-columns:1fr;gap:8px}
+.nu-grid label{font-size:12px;font-weight:700;color:var(--ink-soft)}
+.nu-item{border-left:3px solid var(--celadon);padding:8px 14px;margin-bottom:10px;background:#fff;border-radius:0 10px 10px 0;border-top:1px solid var(--line-soft);border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
+.nu-item .row{font-size:14px;padding:2px 0}
+.nu-item .row i{font-style:normal;display:inline-block;min-width:64px;font-size:11.5px;font-weight:700;color:var(--ink-soft);letter-spacing:.5px}
+.nu-item .row.grow i{color:var(--celadon-deep)}
+
+/* ── 자료실 ─────────────────────────── */
+.lib-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.lib-tabs button{padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:13.5px;font-weight:500}
+.lib-tabs button.on{background:var(--celadon);border-color:var(--celadon);color:#fff}
+.lib-list .rowi{display:flex;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line-soft);font-size:14px;flex-wrap:wrap;align-items:baseline}
+.lib-list .rowi b{font-family:var(--disp);min-width:130px}
+.lib-list .rowi span{color:var(--ink-soft);flex:1;min-width:180px}
+.addform{background:var(--line-soft);border-radius:var(--r);padding:16px;margin-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end}
+.addform label{font-size:12px;font-weight:600;color:var(--ink-soft);display:block;margin-bottom:4px}
+
+/* ── 학생 뷰 ─────────────────────────── */
+.stu-head{display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.stu-head select{width:auto;min-width:180px}
+.mission-big{background:var(--ink);color:#fff;border-radius:var(--r);padding:26px 26px;margin-bottom:18px}
+.mission-big .eyebrow{color:#9FD4C8}
+.mission-big h2{font-family:var(--disp);font-size:24px;line-height:1.45;font-weight:700}
+.mission-big p{opacity:.75;font-size:13.5px;margin-top:8px}
+.hw-item{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line-soft);font-size:14px}
+.hw-item:last-child{border-bottom:none}
+.hw-item input[type=checkbox]{width:18px;height:18px;accent-color:var(--celadon);flex-shrink:0}
+.hw-item.done span{text-decoration:line-through;color:var(--ink-soft)}
+.prog-bar{height:10px;background:var(--line-soft);border-radius:999px;overflow:hidden;margin:8px 0 4px}
+.prog-bar i{display:block;height:100%;background:var(--celadon);border-radius:999px}
+
+/* ── 하단 모바일 내비 ─────────────────── */
+nav.bottom{display:none;position:fixed;bottom:0;left:0;right:0;z-index:50;background:#fff;border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+nav.bottom .wrap{display:grid;grid-template-columns:repeat(4,1fr)}
+nav.bottom button{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--ink-soft);padding:6px 0;border-radius:10px}
+nav.bottom button .ic{font-size:19px;line-height:1}
+nav.bottom button.on{color:var(--celadon-deep);font-weight:700}
+
+/* ── 반응형 ─────────────────────────── */
+@media(max-width:860px){
+  .grid3,.stat-row{grid-template-columns:repeat(2,1fr)}
+  .chain{grid-template-columns:1fr;gap:10px}
+  .chain .link{transform:rotate(90deg);height:8px}
+  .lesson-sheet{grid-template-columns:1fr}
+  .spine{flex-direction:row;flex-wrap:wrap;gap:4px 14px;padding:14px 18px;align-items:baseline}
+  .spine .arrow{display:none}
+  .spine .step{padding:0}
+  .two-col{grid-template-columns:1fr}
+  .addform{grid-template-columns:1fr 1fr}
+}
+@media(max-width:720px){
+  nav.top{display:none}
+  nav.bottom{display:block}
+  main{padding:18px 14px 96px}
+  .grid2{grid-template-columns:1fr}
+  .sheet-body{padding:20px 18px}
+  h1.pg{font-size:22px}
+  .mission{font-size:18px}
+  .addform{grid-template-columns:1fr}
+}
+@media(max-width:460px){.stat-row{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hd-in">
+    <div class="wordmark">ARI <em>Korean OS</em><small>GOAL-BASED LESSON ENGINE</small></div>
+    <nav class="top" id="topnav">
+      <button data-v="home" class="on">교사 홈</button>
+      <button data-v="builder">수업 만들기</button>
+      <button data-v="library">자료실</button>
+      <button data-v="student">학생 뷰</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ═══════════ 교사 홈 ═══════════ -->
+<section class="view on" id="v-home">
+  <h1 class="pg">교사 대시보드</h1>
+  <p class="sub">오늘의 수업, 피드백 대기, 최근 표현 성장 기록을 한눈에 봅니다.</p>
+  <div class="stat-row" id="home-stats"></div>
+  <div class="grid2">
+    <div class="card">
+      <div class="eyebrow">저장된 수업</div>
+      <div id="home-lessons"></div>
+      <div style="margin-top:14px"><button class="btn pri" onclick="go('builder')">＋ 새 수업 만들기</button></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">최근 Natural Upgrade</div>
+      <div id="home-upgrades"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 수업 생성기 ═══════════ -->
+<section class="view" id="v-builder">
+  <h1 class="pg">수업 만들기</h1>
+  <p class="sub">학생 → 시나리오 → 스테이지를 클릭하면, 연결된 기능·문법·패턴·질문·숙제가 자동으로 조립됩니다.</p>
+
+  <div class="chain">
+    <div class="slot" id="slot-student">
+      <h3><i>①</i> 학생 &amp; 목표</h3>
+      <div id="pick-student"></div>
+    </div>
+    <div class="link">→</div>
+    <div class="slot" id="slot-scenario">
+      <h3><i>②</i> 시나리오</h3>
+      <div id="pick-scenario"></div>
+    </div>
+    <div class="link">→</div>
+    <div class="slot" id="slot-stage">
+      <h3><i>③</i> 스테이지</h3>
+      <div id="pick-stage"></div>
+    </div>
+  </div>
+
+  <div class="gen-bar">
+    <button class="btn pri" id="btn-gen" disabled onclick="generateLesson()">⚙ 수업 생성</button>
+    <button class="btn ghost" id="btn-save" style="display:none" onclick="saveLesson()">저장</button>
+    <button class="btn ghost" id="btn-stuview" style="display:none" onclick="openStudentView()">학생용 화면 보기</button>
+  </div>
+
+  <div id="lesson-out"></div>
+</section>
+
+<!-- ═══════════ 자료실 ═══════════ -->
+<section class="view" id="v-library">
+  <h1 class="pg">자료실 <span style="font-size:14px;color:var(--ink-soft);font-family:var(--body);font-weight:400">Resource Library</span></h1>
+  <p class="sub">수업 엔진이 사용하는 재사용 블록 데이터베이스입니다. 항목을 추가하면 즉시 생성기에 반영됩니다.</p>
+  <div class="lib-tabs" id="lib-tabs"></div>
+  <div class="card">
+    <div class="lib-list" id="lib-list"></div>
+    <form class="addform" id="lib-form" onsubmit="return addLibItem(event)"></form>
+  </div>
+</section>
+
+<!-- ═══════════ 학생 뷰 ═══════════ -->
+<section class="view" id="v-student">
+  <div class="stu-head">
+    <h1 class="pg" style="margin:0">나의 한국어</h1>
+    <select id="stu-select" onchange="renderStudent()"></select>
+  </div>
+  <div id="stu-body"></div>
+</section>
+
+</main>
+
+<nav class="bottom">
+  <div class="wrap" id="botnav">
+    <button data-v="home" class="on"><span class="ic">🏠</span>홈</button>
+    <button data-v="builder"><span class="ic">⚙️</span>수업</button>
+    <button data-v="library"><span class="ic">📚</span>자료실</button>
+    <button data-v="student"><span class="ic">🌱</span>학생</button>
+  </div>
+</nav>
+
+<script>
+/* ═════════════════════ 1. 시드 데이터 (ARI 마스터 문서 기반) ═════════════════════ */
+const DB = {
+students:[
+ {id:"emma",name:"Emma",level:"A2",goal:"한국 친구들과 영화 이야기하기",interests:["영화","K-드라마"],weak:["조사 을/를","과거형"]},
+ {id:"lucas",name:"Lucas",level:"A1",goal:"한국 여행을 편하게 하기",interests:["여행","음식"],weak:["숫자","높임말"]},
+ {id:"mina",name:"Mina",level:"B1",goal:"한국어로 자연스럽게 대화하기",interests:["카페","문화"],weak:["-더라고요","간접화법"]},
+],
+stages:[
+ {id:"observe",ko:"👀 보기",name:"Observe",desc:"보이는 것을 묘사하고 기본 반응 말하기"},
+ {id:"experience",ko:"🗣 나누기",name:"Experience",desc:"내가 해 본 경험 이야기하기"},
+ {id:"recommend",ko:"⭐ 추천하기",name:"Recommend",desc:"이유와 함께 가볍게 설득하기"},
+ {id:"explain",ko:"📖 이야기하기",name:"Explain",desc:"과정·줄거리·순서를 설명하기"},
+ {id:"opinion",ko:"💬 내 생각",name:"Opinion",desc:"생각·반응·비교를 표현하기"},
+ {id:"discussion",ko:"🌍 토론하기",name:"Discussion",desc:"비교·분석·해석하며 깊게 대화하기"},
+],
+functions:[
+ {id:"describe",ko:"묘사하기",canDo:"눈에 보이는 것의 종류와 특징을 말할 수 있다"},
+ {id:"preference",ko:"취향 말하기",canDo:"좋아하는 것과 싫어하는 것을 말할 수 있다"},
+ {id:"experience",ko:"경험 나누기",canDo:"직접 해 본 일을 과거형으로 이야기할 수 있다"},
+ {id:"reason",ko:"이유 말하기",canDo:"왜 그런지 이유를 붙여서 말할 수 있다"},
+ {id:"recommendation",ko:"추천하기",canDo:"다른 사람에게 무언가를 추천할 수 있다"},
+ {id:"persuasion",ko:"설득하기",canDo:"상대가 해 보고 싶게 가볍게 설득할 수 있다"},
+ {id:"explanation",ko:"설명하기",canDo:"과정이나 줄거리를 순서대로 설명할 수 있다"},
+ {id:"sequence",ko:"순서 말하기",canDo:"먼저·그리고·마지막에를 써서 순서를 연결할 수 있다"},
+ {id:"opinion",ko:"의견 말하기",canDo:"내 생각과 느낌을 부드럽게 표현할 수 있다"},
+ {id:"comparison",ko:"비교하기",canDo:"두 가지를 비교해서 말할 수 있다"},
+ {id:"discussion",ko:"토론하기",canDo:"주제나 메시지에 대해 깊게 이야기할 수 있다"},
+ {id:"speculation",ko:"추측하기",canDo:"확실하지 않은 것을 추측해서 말할 수 있다"},
+ {id:"ordering",ko:"주문하기",canDo:"카페나 식당에서 원하는 것을 주문할 수 있다"},
+ {id:"plan",ko:"계획 말하기",canDo:"앞으로의 계획을 이야기할 수 있다"},
+],
+grammar:[
+ {id:"g-ieyo",form:"N이에요/예요",mean:"~입니다 (명사 서술)",lv:"A1",fn:["describe"],ex:"이 영화는 액션 영화예요."},
+ {id:"g-like",form:"-을/를 좋아해요",mean:"선호 표현",lv:"A1",fn:["preference"],ex:"저는 액션 영화를 좋아해요."},
+ {id:"g-boda-try",form:"-아/어 보다",mean:"시도·경험",lv:"A2",fn:["experience","recommendation"],ex:"그 영화를 봐 봤어요."},
+ {id:"g-nikka",form:"-(으)니까",mean:"이유·근거",lv:"A2",fn:["reason","persuasion"],ex:"재미있으니까 추천해요."},
+ {id:"g-past",form:"-았/었어요",mean:"과거 시제",lv:"A1",fn:["experience"],ex:"어제 영화를 봤어요."},
+ {id:"g-boseyo",form:"-아/어 보세요",mean:"권유·추천",lv:"A2",fn:["recommendation"],ex:"이 영화 한번 봐 보세요."},
+ {id:"g-geyo",form:"-는 게 좋아요",mean:"부드러운 제안",lv:"A2",fn:["recommendation","opinion"],ex:"주말에 보는 게 좋아요."},
+ {id:"g-go",form:"-고",mean:"나열·연결",lv:"A1",fn:["sequence","explanation"],ex:"주인공이 떠나고 친구를 만나요."},
+ {id:"g-aseo",form:"-아서/어서",mean:"순서·이유 연결",lv:"A2",fn:["sequence","reason","explanation"],ex:"극장에 가서 표를 샀어요."},
+ {id:"g-monjo",form:"먼저 / 그리고 / 마지막에",mean:"순서 담화 표지",lv:"A1",fn:["sequence","explanation"],ex:"먼저 주문하고, 그리고 자리에 앉아요."},
+ {id:"g-gata",form:"-는 것 같아요",mean:"의견·추측 완화",lv:"A2",fn:["opinion","speculation"],ex:"이 영화가 더 재미있는 것 같아요."},
+ {id:"g-boda-cmp",form:"-보다",mean:"비교",lv:"A2",fn:["comparison","opinion"],ex:"액션 영화보다 코미디를 좋아해요."},
+ {id:"g-jiman",form:"-지만",mean:"대조",lv:"A2",fn:["opinion","comparison"],ex:"길지만 지루하지 않았어요."},
+ {id:"g-sudo",form:"-(으)ㄹ 수도 있다",mean:"가능성 추측",lv:"B1",fn:["speculation","discussion"],ex:"감독의 메시지일 수도 있어요."},
+ {id:"g-deora",form:"-더라고요",mean:"회상·발견 전달",lv:"B1",fn:["discussion","opinion"],ex:"생각보다 슬프더라고요."},
+ {id:"g-dago",form:"-다고 생각하다",mean:"의견 진술",lv:"B1",fn:["discussion","opinion"],ex:"결말이 열려 있다고 생각해요."},
+ {id:"g-gosipda",form:"-고 싶다",mean:"희망·바람",lv:"A1",fn:["plan","preference"],ex:"부산에 가고 싶어요."},
+ {id:"g-juseyo",form:"N 주세요",mean:"요청·주문",lv:"A1",fn:["ordering"],ex:"아메리카노 한 잔 주세요."},
+ {id:"g-ryeogo",form:"-(으)려고 해요",mean:"의도·계획",lv:"A2",fn:["plan"],ex:"내년에 한국에 가려고 해요."},
+],
+patterns:[
+ {id:"p1",fn:"preference",sc:["movie","cafe","travel"],t:"저는 N을/를 좋아해요.",e:"저는 액션 영화를 좋아해요. 왜냐하면 긴장감이 있어서요.",n:"저는 액션 영화를 정말 좋아해요. 긴장감도 있고 몰입감도 있어서 시간 가는 줄 모르겠어요."},
+ {id:"p2",fn:"recommendation",sc:["movie"],t:"이 영화 한번 봐 보세요.",e:"이 영화 한번 봐 보세요. 배우들이 정말 잘해요.",n:"이 영화 꼭 한번 봐 보세요. 배우들 연기도 좋고 이야기도 탄탄해서 후회 안 하실 거예요."},
+ {id:"p3",fn:"reason",sc:["movie","cafe","travel"],t:"재미있으니까 추천해요.",e:"이야기가 재미있으니까 추천해요.",n:"이야기도 재미있고 음악도 좋으니까 자신 있게 추천해요."},
+ {id:"p4",fn:"recommendation",sc:["movie"],t:"N을/를 좋아하면 이 영화가 좋을 것 같아요.",e:"액션을 좋아하면 이 영화가 좋을 것 같아요.",n:"액션 영화를 좋아하는 사람이라면 이 영화가 딱 맞을 것 같아요."},
+ {id:"p5",fn:"experience",sc:["movie","travel","cafe"],t:"지난 주에 N을/를 봤어요/했어요.",e:"지난 주에 새 영화를 봤어요. 친구하고 같이 갔어요.",n:"지난 주에 친구하고 새로 나온 영화를 봤는데, 기대보다 훨씬 좋았어요."},
+ {id:"p6",fn:"explanation",sc:["movie"],t:"먼저 ..., 그리고 ..., 마지막에 ...",e:"먼저 주인공이 서울에 와요. 그리고 친구를 만나요. 마지막에 고향에 돌아가요.",n:"먼저 주인공이 서울에 와서 새 생활을 시작해요. 그러다가 옛 친구를 우연히 만나고, 마지막에는 고향으로 돌아가기로 결심해요."},
+ {id:"p7",fn:"opinion",sc:["movie","cafe","travel"],t:"N이/가 -는 것 같아요.",e:"이 영화가 올해 본 영화 중에 제일 좋은 것 같아요.",n:"개인적으로는 이 영화가 올해 본 영화 중에 제일 인상 깊었던 것 같아요."},
+ {id:"p8",fn:"comparison",sc:["movie","cafe"],t:"A보다 B이/가 더 ...",e:"원작보다 영화가 더 재미있어요.",n:"원작 소설도 좋지만, 저는 영화가 더 몰입이 잘 되더라고요."},
+ {id:"p9",fn:"discussion",sc:["movie"],t:"...일 수도 있다고 생각해요.",e:"감독이 가족에 대해 말하고 싶었을 수도 있다고 생각해요.",n:"이 영화는 결국 가족의 의미에 대한 이야기일 수도 있다고 생각해요. 마지막 장면이 특히 그렇더라고요."},
+ {id:"p10",fn:"ordering",sc:["cafe"],t:"N 한 잔 주세요.",e:"아이스 아메리카노 한 잔 주세요. 얼음 조금만요.",n:"아이스 아메리카노 한 잔 주시고요, 얼음은 조금만 넣어 주세요."},
+ {id:"p11",fn:"plan",sc:["travel"],t:"N에 가려고 해요.",e:"이번 여름에 부산에 가려고 해요.",n:"이번 여름에 부산에 가려고 하는데, 바다도 보고 시장 음식도 먹어 보고 싶어요."},
+ {id:"p12",fn:"describe",sc:["movie","cafe"],t:"이건 N이에요.",e:"이건 액션 영화예요. 조금 무서워요.",n:"이건 액션 영화인데, 긴장감이 넘쳐서 손에 땀이 나요."},
+],
+vocab:[
+ {w:"감독",m:"director",tags:["movie"]},{w:"배우",m:"actor",tags:["movie"]},
+ {w:"장르",m:"genre",tags:["movie"]},{w:"추천하다",m:"to recommend",tags:["movie","cafe","travel","recommendation"]},
+ {w:"줄거리",m:"plot",tags:["movie"]},{w:"분위기",m:"atmosphere",tags:["movie","cafe","opinion"]},
+ {w:"결말",m:"ending",tags:["movie"]},{w:"주인공",m:"main character",tags:["movie"]},
+ {w:"메뉴",m:"menu",tags:["cafe"]},{w:"주문하다",m:"to order",tags:["cafe"]},
+ {w:"자리",m:"seat",tags:["cafe"]},{w:"음료",m:"drink",tags:["cafe"]},
+ {w:"계획",m:"plan",tags:["travel","plan"]},{w:"여행지",m:"destination",tags:["travel"]},
+ {w:"예약하다",m:"to book",tags:["travel"]},{w:"추억",m:"memory",tags:["travel","experience"]},
+ {w:"일정",m:"schedule",tags:["travel"]},{w:"경치",m:"scenery",tags:["travel"]},
+],
+questions:[
+ {q:"최근에 본 영화는 뭐예요?",f:"어땠어요?",fn:"experience",sc:["movie"],st:["experience","recommend"]},
+ {q:"왜 그 영화를 추천해요?",f:"어떤 점이 제일 좋았어요?",fn:"reason",sc:["movie"],st:["recommend"]},
+ {q:"어떤 사람에게 추천하고 싶어요?",f:"그 사람이 왜 좋아할 것 같아요?",fn:"recommendation",sc:["movie"],st:["recommend"]},
+ {q:"이 영화는 어떤 영화예요?",f:"어떤 장르를 좋아해요?",fn:"describe",sc:["movie"],st:["observe"]},
+ {q:"어떤 영화를 좋아해요? 왜요?",f:"싫어하는 장르도 있어요?",fn:"preference",sc:["movie"],st:["observe"]},
+ {q:"그 영화 줄거리를 짧게 설명해 줄 수 있어요?",f:"제일 중요한 장면은 뭐였어요?",fn:"explanation",sc:["movie"],st:["explain"]},
+ {q:"그 영화, 어땠어요? 솔직한 생각이 궁금해요.",f:"별점을 준다면 몇 점이에요?",fn:"opinion",sc:["movie"],st:["opinion"]},
+ {q:"원작하고 영화 중에 뭐가 더 좋았어요?",f:"뭐가 제일 달랐어요?",fn:"comparison",sc:["movie"],st:["opinion"]},
+ {q:"감독이 이 영화로 무슨 말을 하고 싶었을까요?",f:"동의해요, 아니면 다르게 봤어요?",fn:"discussion",sc:["movie"],st:["discussion"]},
+ {q:"결말이 왜 그렇게 끝났을까요?",f:"다른 결말이었다면 어땠을까요?",fn:"speculation",sc:["movie"],st:["discussion"]},
+ {q:"카페에서 보통 뭘 주문해요?",f:"오늘은 뭘 마시고 싶어요?",fn:"ordering",sc:["cafe"],st:["observe","experience"]},
+ {q:"좋아하는 카페가 있어요? 왜 좋아해요?",f:"분위기가 어때요?",fn:"preference",sc:["cafe"],st:["observe","recommend"]},
+ {q:"친구에게 카페를 추천한다면 어디를 추천할 거예요?",f:"거기서 뭘 마시는 게 좋아요?",fn:"recommendation",sc:["cafe"],st:["recommend"]},
+ {q:"이번 여행 계획이 있어요?",f:"거기서 뭘 하고 싶어요?",fn:"plan",sc:["travel"],st:["experience","explain"]},
+ {q:"기억에 남는 여행이 있어요?",f:"제일 좋았던 순간은 언제였어요?",fn:"experience",sc:["travel"],st:["experience"]},
+ {q:"한국에 가면 어디에 제일 가 보고 싶어요? 왜요?",f:"누구하고 같이 가고 싶어요?",fn:"reason",sc:["travel"],st:["recommend","opinion"]},
+],
+culture:[
+ {sc:"movie",topic:"한국의 영화관 & OTT 문화",note:"한국은 CGV·메가박스 같은 대형 영화관 문화와 함께, 넷플릭스·티빙 등 OTT 시청이 매우 일상적입니다. '정주행'이라는 표현도 함께 가르치기 좋습니다.",prompt:"여러분 나라에서는 영화를 주로 어디서 봐요? 한국하고 비교해 볼까요?"},
+ {sc:"cafe",topic:"한국의 카페 문화",note:"한국 카페는 공부·모임·데이트 공간으로 쓰이며, '카공(카페에서 공부)'이라는 신조어도 있습니다. 진동벨로 주문을 받는 방식도 특징적입니다.",prompt:"여러분 나라의 카페하고 한국 카페는 뭐가 달라요?"},
+ {sc:"travel",topic:"한국 여행 예절과 대중교통",note:"티머니 카드, 지하철 예절(노약자석), 식당에서 '이모님' 호칭 등 여행자가 바로 쓰는 문화 포인트를 다룹니다.",prompt:"한국 여행에서 제일 궁금한 것은 뭐예요?"},
+],
+homeworkT:[
+ {type:"녹음 과제",fn:"recommendation",inst:"오늘 배운 패턴으로 친구에게 무언가를 추천하는 말을 5문장으로 녹음해서 보내 주세요."},
+ {type:"짧은 글쓰기",fn:"experience",inst:"최근 경험 하나를 오늘 배운 문법 2개 이상을 사용해 5~6문장으로 써 보세요."},
+ {type:"패턴 변형",fn:"preference",inst:"오늘의 패턴에서 명사를 바꿔 새로운 문장 5개를 만들어 보세요."},
+ {type:"쉐도잉",fn:"explanation",inst:"오늘의 Natural 버전 문장 3개를 소리 내어 3번씩 따라 읽고 녹음해 주세요."},
+ {type:"짧은 글쓰기",fn:"opinion",inst:"오늘 이야기한 주제에 대한 내 의견을 '-는 것 같아요'를 써서 5문장으로 정리해 보세요."},
+ {type:"녹음 과제",fn:"discussion",inst:"오늘 토론한 주제에 대해 1분 동안 내 생각을 말하고 녹음해 주세요.",},
+ {type:"역할극 준비",fn:"ordering",inst:"카페에서 주문하는 대화를 직접 써 보고 다음 수업에서 역할극으로 연습합니다."},
+ {type:"짧은 글쓰기",fn:"plan",inst:"'-(으)려고 해요'를 사용해 나의 여행 계획을 5문장으로 써 보세요."},
+],
+scenarios:[
+ {id:"movie",ko:"🎬 영화",stages:{
+   observe:{mission:"이 영화가 어떤 영화인지 말할 수 있다",fns:["describe","preference"]},
+   experience:{mission:"최근에 본 영화 이야기를 할 수 있다",fns:["experience","reason"]},
+   recommend:{mission:"친구에게 한국 영화를 추천할 수 있다",fns:["recommendation","persuasion","reason"]},
+   explain:{mission:"영화 줄거리를 순서대로 설명할 수 있다",fns:["explanation","sequence"]},
+   opinion:{mission:"영화에 대한 내 생각을 말할 수 있다",fns:["opinion","comparison"]},
+   discussion:{mission:"영화의 메시지에 대해 토론할 수 있다",fns:["discussion","speculation"]},
+ }},
+ {id:"cafe",ko:"☕ 카페",stages:{
+   observe:{mission:"카페 메뉴와 분위기를 말할 수 있다",fns:["describe","preference"]},
+   experience:{mission:"카페에서 주문하고 경험을 이야기할 수 있다",fns:["ordering","experience"]},
+   recommend:{mission:"좋아하는 카페를 이유와 함께 추천할 수 있다",fns:["recommendation","reason"]},
+   opinion:{mission:"카페 분위기에 대한 내 생각을 말할 수 있다",fns:["opinion","comparison"]},
+ }},
+ {id:"travel",ko:"✈️ 여행",stages:{
+   experience:{mission:"기억에 남는 여행 이야기를 할 수 있다",fns:["experience","reason"]},
+   recommend:{mission:"가 보고 싶은 여행지를 추천할 수 있다",fns:["recommendation","reason"]},
+   explain:{mission:"나의 여행 계획을 순서대로 설명할 수 있다",fns:["plan","sequence"]},
+   opinion:{mission:"여행 스타일을 비교하며 내 생각을 말할 수 있다",fns:["opinion","comparison"]},
+ }},
+],
+};
+
+/* ═════════════════════ 2. 저장소 (persist + 메모리 폴백) ═════════════════════ */
+const mem = {lessons:[],upgrades:[],hwStatus:{},custom:{grammar:[],patterns:[],vocab:[],questions:[],functions:[]}};
+const hasStore = typeof window.storage !== "undefined";
+async function load(key,fb){ if(!hasStore) return fb;
+  try{const r=await window.storage.get(key); return r?JSON.parse(r.value):fb;}catch(e){return fb;} }
+async function save(key,val){ if(!hasStore) return;
+  try{await window.storage.set(key,JSON.stringify(val));}catch(e){console.error("저장 실패",e);} }
+async function boot(){
+  mem.lessons  = await load("ari:lessons",[]);
+  mem.upgrades = await load("ari:upgrades",[]);
+  mem.hwStatus = await load("ari:hw",{});
+  mem.custom   = await load("ari:custom",mem.custom);
+  ["grammar","patterns","vocab","questions","functions"].forEach(k=>{
+    (mem.custom[k]||[]).forEach(it=>DB[k].push(it));
+  });
+  renderHome(); renderBuilder(); renderLibrary(); fillStudentSelect(); renderStudent();
+}
+
+/* ═════════════════════ 3. 내비게이션 ═════════════════════ */
+function go(v){
+  document.querySelectorAll(".view").forEach(s=>s.classList.remove("on"));
+  document.getElementById("v-"+v).classList.add("on");
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+  window.scrollTo({top:0});
+  if(v==="home")renderHome(); if(v==="student")renderStudent();
+}
+document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>go(b.dataset.v)));
+
+/* ═════════════════════ 4. 교사 홈 ═════════════════════ */
+function renderHome(){
+  const st=document.getElementById("home-stats");
+  const errCount = DB.students.reduce((a,s)=>a+s.weak.length,0);
+  st.innerHTML = [
+    ["학생",DB.students.length+"명"],["저장된 수업",mem.lessons.length+"개"],
+    ["표현 성장 기록",mem.upgrades.length+"개"],["관찰 중인 오류",errCount+"건"]
+  ].map(([l,v])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
+
+  const box=document.getElementById("home-lessons");
+  if(!mem.lessons.length){ box.innerHTML=`<div class="empty">아직 저장된 수업이 없어요. <b>수업 만들기</b>에서 첫 수업을 조립해 보세요.</div>`; }
+  else{
+    box.innerHTML = mem.lessons.slice().reverse().slice(0,6).map(L=>{
+      const s=DB.students.find(x=>x.id===L.studentId);
+      return `<div class="lesson-row">
+        <div class="who">${s?s.name[0]:"?"}</div>
+        <div class="meta"><b>${L.mission}</b><span>${s?s.name:""} · ${L.scenarioKo} · ${L.stageKo} · ${L.date}</span></div>
+        <button class="btn small ghost" onclick="reopenLesson('${L.id}')">열기</button>
+      </div>`;}).join("");
+  }
+  const ub=document.getElementById("home-upgrades");
+  if(!mem.upgrades.length){ ub.innerHTML=`<div class="empty">수업 중 학생 문장을 기록하면<br>Fix → Upgrade → Grow가 여기에 쌓입니다.</div>`; }
+  else{
+    ub.innerHTML = mem.upgrades.slice().reverse().slice(0,4).map(u=>{
+      const s=DB.students.find(x=>x.id===u.studentId);
+      return `<div class="nu-item">
+        <div class="row"><i>원문</i>${u.orig}</div>
+        <div class="row"><i>FIX</i>${u.fix}</div>
+        <div class="row grow"><i>GROW</i>${u.grow||u.up}</div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:3px">${s?s.name:""} · ${u.date}</div>
+      </div>`;}).join("");
+  }
+}
+function reopenLesson(id){
+  const L=mem.lessons.find(x=>x.id===id); if(!L)return;
+  sel.student=L.studentId; sel.scenario=L.scenarioId; sel.stage=L.stageId;
+  go("builder"); renderBuilder(); generateLesson(true);
+}
+
+/* ═════════════════════ 5. 수업 생성기 ═════════════════════ */
+const sel={student:null,scenario:null,stage:null};
+let currentLesson=null;
+
+function renderBuilder(){
+  document.getElementById("pick-student").innerHTML = DB.students.map(s=>
+    `<button class="opt ${sel.student===s.id?'sel':''}" onclick="pick('student','${s.id}')">
+      ${s.name} <span class="chip plain">${s.level}</span><small>🎯 ${s.goal}</small></button>`).join("");
+  document.getElementById("pick-scenario").innerHTML = DB.scenarios.map(sc=>
+    `<button class="opt ${sel.scenario===sc.id?'sel':''}" onclick="pick('scenario','${sc.id}')">${sc.ko}
+      <small>${Object.keys(sc.stages).length}개 스테이지 지원</small></button>`).join("");
+  const sc=DB.scenarios.find(x=>x.id===sel.scenario);
+  document.getElementById("pick-stage").innerHTML = sc
+    ? DB.stages.filter(st=>sc.stages[st.id]).map(st=>
+      `<button class="opt ${sel.stage===st.id?'sel':''}" onclick="pick('stage','${st.id}')">${st.ko}<small>${st.desc}</small></button>`).join("")
+    : `<div class="empty" style="padding:16px">먼저 시나리오를 선택하세요</div>`;
+  ["student","scenario","stage"].forEach(k=>
+    document.getElementById("slot-"+k).classList.toggle("done",!!sel[k]));
+  document.getElementById("btn-gen").disabled = !(sel.student&&sel.scenario&&sel.stage);
+}
+function pick(k,v){ sel[k]=v; if(k==="scenario")sel.stage=null; renderBuilder(); }
+
+/* ── 엔진: 선택값으로 연계 블록 자동 수집 ── */
+function assemble(){
+  const stu=DB.students.find(s=>s.id===sel.student);
+  const sc=DB.scenarios.find(s=>s.id===sel.scenario);
+  const st=DB.stages.find(s=>s.id===sel.stage);
+  const node=sc.stages[sel.stage];
+  const fns=node.fns.map(id=>DB.functions.find(f=>f.id===id)).filter(Boolean);
+  const fnIds=node.fns;
+  const grammar=DB.grammar.filter(g=>g.fn.some(f=>fnIds.includes(f))).slice(0,3);
+  const patterns=DB.patterns.filter(p=>fnIds.includes(p.fn)&&(!p.sc||p.sc.includes(sc.id))).slice(0,3);
+  const vocab=DB.vocab.filter(v=>v.tags.includes(sc.id)||v.tags.some(t=>fnIds.includes(t))).slice(0,6);
+  const qs=DB.questions.filter(q=>q.sc.includes(sc.id)&&(q.st.includes(st.id)||fnIds.includes(q.fn))).slice(0,4);
+  const culture=DB.culture.find(c=>c.sc===sc.id);
+  const hw=DB.homeworkT.find(h=>fnIds.includes(h.fn))||DB.homeworkT[0];
+  const stArr=DB.stages.filter(x=>sc.stages[x.id]).map(x=>x.id);
+  const nextStage=stArr[stArr.indexOf(st.id)+1];
+  return {id:"L"+Date.now(),date:new Date().toLocaleDateString("ko-KR"),
+    studentId:stu.id,studentName:stu.name,level:stu.level,goal:stu.goal,weak:stu.weak,
+    scenarioId:sc.id,scenarioKo:sc.ko,stageId:st.id,stageKo:st.ko,
+    mission:node.mission,fns,grammar,patterns,vocab,qs,culture,hw,
+    next:nextStage?DB.stages.find(x=>x.id===nextStage):null};
+}
+
+function generateLesson(silent){
+  currentLesson=assemble(); const L=currentLesson;
+  document.getElementById("btn-save").style.display="inline-flex";
+  document.getElementById("btn-stuview").style.display="inline-flex";
+  document.getElementById("lesson-out").innerHTML = `
+  <div class="lesson-sheet">
+    <aside class="spine">
+      ${[["GOAL",L.goal],["SCENARIO",L.scenarioKo],["STAGE",L.stageKo],
+         ["FUNCTION",L.fns.map(f=>f.ko).join(" · ")],
+         ["GRAMMAR",L.grammar.map(g=>g.form).join(", ")]]
+        .map(([k,v],i,a)=>`<div class="step">${k}</div><div class="val">${v}</div>${i<a.length-1?'<div class="arrow">↓</div>':''}`).join("")}
+    </aside>
+    <div class="sheet-body">
+      <div class="eyebrow">${L.studentName} · ${L.level} · ${L.date}</div>
+      <div class="mission">오늘의 미션 — ${L.mission}</div>
+
+      <div class="two-col">
+        <div>
+          <div class="sec"><h4>학생 스냅샷</h4>
+            <div style="font-size:14px">🎯 ${L.goal}<br>⚠️ 반복 오류: ${L.weak.map(w=>`<span class="chip warm">${w}</span>`).join("")}</div>
+          </div>
+          <div class="sec"><h4>목표 기능 (Can-do)</h4>
+            ${L.fns.map(f=>`<div class="qa"><b>${f.ko}</b><small>${f.canDo}</small></div>`).join("")}
+          </div>
+          <div class="sec"><h4>목표 문법</h4>
+            <table class="gr-table">${L.grammar.map(g=>
+              `<tr><td>${g.form}</td><td>${g.mean} <span class="chip plain">${g.lv}</span><br><span style="color:var(--ink-soft)">${g.ex}</span></td></tr>`).join("")}</table>
+          </div>
+          <div class="sec"><h4>핵심 어휘</h4>
+            ${L.vocab.map(v=>`<span class="chip">${v.w} <span style="opacity:.65">${v.m}</span></span>`).join("")}
+          </div>
+        </div>
+        <div>
+          <div class="sec"><h4>말하기 패턴 · 3단 성장</h4>
+            ${L.patterns.map(p=>`<div class="pat"><b>${p.t}</b>
+              <div class="lv"><em>확장</em>${p.e}</div>
+              <div class="lv"><em style="color:var(--persimmon)">자연</em>${p.n}</div></div>`).join("")}
+          </div>
+          <div class="sec"><h4>말하기 질문</h4>
+            ${L.qs.map(q=>`<div class="qa">${q.q}<small>↳ 후속: ${q.f}</small></div>`).join("")||'<div class="empty">이 조합의 질문을 자료실에 추가해 보세요.</div>'}
+          </div>
+          ${L.culture?`<div class="sec"><h4>문화 노트</h4>
+            <div style="font-size:14px"><b>${L.culture.topic}</b><br>${L.culture.note}<br>
+            <span style="color:var(--celadon-deep)">💬 ${L.culture.prompt}</span></div></div>`:""}
+        </div>
+      </div>
+
+      <div class="sec"><h4>메인 말하기 과제</h4>
+        <div style="font-size:14.5px">오늘 배운 패턴과 문법을 사용해 <b>"${L.mission.replace(/할 수 있다$/,"하기")}"</b> 과제를 수행합니다. 교사는 역할극 상대 또는 청자가 됩니다.</div>
+      </div>
+
+      <div class="sec"><h4>숙제</h4>
+        <div class="hw-box"><b>${L.hw.type}</b> — ${L.hw.inst}</div>
+      </div>
+
+      <div class="sec"><h4>Natural Upgrade 기록 <span style="font-weight:400;text-transform:none;letter-spacing:0">— 학생 문장을 교재로</span></h4>
+        <div class="nu-grid">
+          <div><label>학생이 말한 문장</label><input id="nu-orig" placeholder="예) 저는 한국 가고 싶어요."></div>
+          <div><label>Fix — 교정</label><input id="nu-fix" placeholder="예) 저는 한국에 가고 싶어요."></div>
+          <div><label>Upgrade — 자연스럽게</label><input id="nu-up" placeholder="예) 저는 언젠가 한국에 꼭 가 보고 싶어요."></div>
+          <div><label>Grow — 확장</label><textarea id="nu-grow" rows="2" placeholder="예) 저는 언젠가 한국에 꼭 가 보고 싶어요. 한국 음식을 정말 좋아해서 직접 맛보고 싶거든요."></textarea></div>
+          <button class="btn pri small" style="justify-self:start" onclick="addUpgrade()">기록 저장</button>
+          <div id="nu-list">${renderUpgradesFor(L.studentId)}</div>
+        </div>
+      </div>
+
+      ${L.next?`<div class="sec"><h4>다음 수업 제안</h4>
+        <div style="font-size:14px">같은 시나리오(${L.scenarioKo})에서 <b>${L.next.ko}</b> 스테이지로 깊이를 올리는 것을 추천합니다 — ${L.next.desc}.</div></div>`:""}
+    </div>
+  </div>`;
+  if(!silent) document.getElementById("lesson-out").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+async function saveLesson(){
+  if(!currentLesson)return;
+  const plain={...currentLesson};
+  mem.lessons.push(plain); await save("ari:lessons",mem.lessons);
+  const b=document.getElementById("btn-save"); b.textContent="저장됨 ✓";
+  setTimeout(()=>b.textContent="저장",1800); renderHome();
+}
+function openStudentView(){
+  if(currentLesson){document.getElementById("stu-select").value=currentLesson.studentId;}
+  go("student");
+}
+function renderUpgradesFor(sid){
+  const list=mem.upgrades.filter(u=>u.studentId===sid).slice().reverse().slice(0,3);
+  if(!list.length)return"";
+  return list.map(u=>`<div class="nu-item">
+    <div class="row"><i>원문</i>${u.orig}</div>
+    <div class="row"><i>FIX</i>${u.fix}</div>
+    ${u.up?`<div class="row"><i>UPGRADE</i>${u.up}</div>`:""}
+    ${u.grow?`<div class="row grow"><i>GROW</i>${u.grow}</div>`:""}
+  </div>`).join("");
+}
+async function addUpgrade(){
+  const g=id=>document.getElementById(id).value.trim();
+  if(!g("nu-orig")||!g("nu-fix")){alert("학생 문장과 Fix는 필수입니다.");return;}
+  mem.upgrades.push({studentId:currentLesson.studentId,orig:g("nu-orig"),fix:g("nu-fix"),
+    up:g("nu-up"),grow:g("nu-grow"),date:new Date().toLocaleDateString("ko-KR"),
+    lessonMission:currentLesson.mission});
+  await save("ari:upgrades",mem.upgrades);
+  ["nu-orig","nu-fix","nu-up","nu-grow"].forEach(i=>document.getElementById(i).value="");
+  document.getElementById("nu-list").innerHTML=renderUpgradesFor(currentLesson.studentId);
+}
+
+/* ═════════════════════ 6. 자료실 ═════════════════════ */
+const LIB=[
+ {k:"functions",ko:"기능 DB",cols:["ko","canDo"],labels:["기능 이름","Can-do 문장"],
+  row:x=>`<b>${x.ko}</b><span>${x.canDo}</span>`,
+  make:v=>({id:"f"+Date.now(),ko:v[0],canDo:v[1]})},
+ {k:"grammar",ko:"문법 DB",cols:["form","mean","ex"],labels:["문법 형태","의미","예문"],
+  row:x=>`<b>${x.form}</b><span>${x.mean} · <i>${x.ex||""}</i></span><span class="chip plain">${x.lv||"?"}</span><span class="chip">${(x.fn||[]).join(", ")}</span>`,
+  make:v=>({id:"g"+Date.now(),form:v[0],mean:v[1],ex:v[2],lv:"?",fn:[]})},
+ {k:"patterns",ko:"패턴 DB",cols:["t","e","n"],labels:["템플릿","확장 버전","자연 버전"],
+  row:x=>`<b>${x.t}</b><span>확장: ${x.e}<br>자연: ${x.n}</span><span class="chip">${x.fn||""}</span>`,
+  make:v=>({id:"p"+Date.now(),t:v[0],e:v[1],n:v[2],fn:"preference",sc:["movie","cafe","travel"]})},
+ {k:"vocab",ko:"어휘 DB",cols:["w","m","tags"],labels:["단어","뜻","태그(쉼표 구분)"],
+  row:x=>`<b>${x.w}</b><span>${x.m}</span>${x.tags.map(t=>`<span class="chip plain">${t}</span>`).join("")}`,
+  make:v=>({w:v[0],m:v[1],tags:v[2].split(",").map(s=>s.trim()).filter(Boolean)})},
+ {k:"questions",ko:"질문 DB",cols:["q","f","fn"],labels:["질문","후속 질문","기능 id (예: opinion)"],
+  row:x=>`<b style="min-width:0;flex:2">${x.q}</b><span>↳ ${x.f}</span><span class="chip">${x.fn}</span>`,
+  make:v=>({q:v[0],f:v[1],fn:v[2]||"opinion",sc:["movie","cafe","travel"],st:["observe","experience","recommend","explain","opinion","discussion"]})},
+];
+let libKey="functions";
+function renderLibrary(){
+  document.getElementById("lib-tabs").innerHTML=LIB.map(t=>
+    `<button class="${t.k===libKey?'on':''}" onclick="libKey='${t.k}';renderLibrary()">${t.ko}</button>`).join("");
+  const t=LIB.find(x=>x.k===libKey);
+  document.getElementById("lib-list").innerHTML=DB[t.k].map(x=>`<div class="rowi">${t.row(x)}</div>`).join("");
+  document.getElementById("lib-form").innerHTML =
+    t.cols.map((c,i)=>`<div><label>${t.labels[i]}</label><input name="c${i}" required></div>`).join("")
+    +`<button class="btn pri" type="submit">＋ 추가</button>`;
+}
+async function addLibItem(ev){
+  ev.preventDefault();
+  const t=LIB.find(x=>x.k===libKey);
+  const vals=t.cols.map((_,i)=>ev.target["c"+i].value.trim());
+  const item=t.make(vals);
+  DB[t.k].push(item);
+  mem.custom[t.k]=mem.custom[t.k]||[]; mem.custom[t.k].push(item);
+  await save("ari:custom",mem.custom);
+  ev.target.reset(); renderLibrary(); return false;
+}
+
+/* ═════════════════════ 7. 학생 뷰 ═════════════════════ */
+function fillStudentSelect(){
+  document.getElementById("stu-select").innerHTML =
+    DB.students.map(s=>`<option value="${s.id}">${s.name} (${s.level})</option>`).join("");
+}
+async function toggleHW(key,cb){
+  mem.hwStatus[key]=cb.checked; await save("ari:hw",mem.hwStatus);
+  cb.closest(".hw-item").classList.toggle("done",cb.checked); renderStudent();
+}
+function renderStudent(){
+  const sid=document.getElementById("stu-select").value||DB.students[0].id;
+  const stu=DB.students.find(s=>s.id===sid);
+  const myLessons=mem.lessons.filter(L=>L.studentId===sid);
+  const latest=myLessons[myLessons.length-1];
+  const myUps=mem.upgrades.filter(u=>u.studentId===sid);
+  const hwList=myLessons.map(L=>({key:L.id,label:`${L.hw.type} — ${L.hw.inst}`,mission:L.mission}));
+  const doneCnt=hwList.filter(h=>mem.hwStatus[h.key]).length;
+  const totalStages=DB.scenarios.reduce((a,s)=>a+Object.keys(s.stages).length,0);
+  const doneStages=new Set(myLessons.map(L=>L.scenarioId+"/"+L.stageId)).size;
+
+  document.getElementById("stu-body").innerHTML = `
+  <div class="mission-big">
+    <div class="eyebrow">오늘의 미션</div>
+    <h2>${latest?latest.mission:"곧 첫 수업이 시작돼요!"}</h2>
+    <p>${latest?latest.scenarioKo+" · "+latest.stageKo+" · "+latest.date:"선생님이 첫 수업을 만들면 여기에 미션이 표시됩니다."}</p>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="eyebrow">핵심 표현 · 오늘의 패턴</div>
+      ${latest?latest.patterns.map(p=>`<div class="pat"><b>${p.t}</b><div class="lv"><em style="color:var(--persimmon)">자연</em>${p.n}</div></div>`).join(""):'<div class="empty">첫 수업 후에 표현이 쌓여요.</div>'}
+      ${latest?`<div style="margin-top:12px" class="eyebrow">새 단어</div>${latest.vocab.map(v=>`<span class="chip">${v.w} <span style="opacity:.6">${v.m}</span></span>`).join("")}`:""}
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">나의 표현 은행 — Natural Upgrade</div>
+      ${myUps.length?myUps.slice().reverse().slice(0,4).map(u=>`<div class="nu-item">
+        <div class="row"><i>내 문장</i>${u.orig}</div>
+        <div class="row grow"><i>성장</i>${u.grow||u.up||u.fix}</div></div>`).join(""):'<div class="empty">수업 중 내 문장이 더 자연스러운 한국어로<br>업그레이드되어 여기에 저장돼요.</div>'}
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">숙제 <span class="chip warm">${doneCnt}/${hwList.length} 완료</span></div>
+      ${hwList.length?hwList.slice().reverse().map(h=>`<div class="hw-item ${mem.hwStatus[h.key]?'done':''}">
+        <input type="checkbox" ${mem.hwStatus[h.key]?"checked":""} onchange="toggleHW('${h.key}',this)">
+        <span><b>${h.mission}</b><br>${h.label}</span></div>`).join(""):'<div class="empty">아직 숙제가 없어요.</div>'}
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">나의 진행 상황</div>
+      <div style="font-size:14px">🎯 목표: <b>${stu.goal}</b></div>
+      <div style="font-size:13px;color:var(--ink-soft);margin-top:10px">완료한 미션 ${doneStages} / ${totalStages}</div>
+      <div class="prog-bar"><i style="width:${Math.min(100,Math.round(doneStages/totalStages*100))}%"></i></div>
+      <div style="font-size:13px;color:var(--ink-soft);margin-top:10px">표현 은행 <b>${myUps.length}</b>개 · 완료 수업 <b>${myLessons.length}</b>회</div>
+      <div style="margin-top:12px" class="eyebrow">복습 포인트</div>
+      ${stu.weak.map(w=>`<span class="chip warm">${w}</span>`).join("")}
+      ${latest&&latest.next?`<div style="font-size:13.5px;margin-top:12px">다음 수업: <b>${latest.scenarioKo} ${latest.next.ko}</b></div>`:""}
+    </div>
+  </div>`;
+}
+
+boot();
+</script>
+</body>
+</html>
